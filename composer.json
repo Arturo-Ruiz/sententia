@@ -10,11 +10,13 @@
     "license": "MIT",
     "require": {
         "php": "^8.3",
+        "guzzlehttp/guzzle": "*",
         "laravel/fortify": "^1.34",
         "laravel/framework": "^13.7",
         "laravel/tinker": "^3.0",
         "livewire/flux": "^2.13.1",
-        "livewire/livewire": "^4.1"
+        "livewire/livewire": "^4.1",
+        "symfony/dom-crawler": "*"
     },
     "require-dev": {
         "fakerphp/faker": "^1.24",
