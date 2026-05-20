@@ -6,6 +6,8 @@ use Illuminate\Console\Attributes\Description;
 use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
 
+use App\Services\TsjScraperService;
+
 #[Signature('app:test-scraper')]
 #[Description('Command description')]
 class TestScraper extends Command
@@ -15,16 +17,19 @@ class TestScraper extends Command
      */
     public function handle()
     {
-        $url = 'https://historico.tsj.gob.ve/decisiones/scs1/febrero/352951-026-26226-2026-25-023.HTML';
-        $this->info("Test Scrapper with URL: $url");
+        $filePath = base_path('html_tsj_results.html');
 
-        $scraper = new \App\Services\TsjScraperService();
-        $result = $scraper->scrapeFromUrl($url);
-
-        if ($result instanceof \App\Models\Sentence) {
-            $this->info("Success sentence save: " . $result->case_number);
-        } else {
-            $this->error("Error saving sentence.");
+        if (!file_exists($filePath)) {
+            $this->error("No encontré el archivo html_tsj_results.html en la raíz del proyecto.");
+            return;
         }
+
+        $this->info("Leyendo archivo HTML renderizado...");
+        $htmlContent = file_get_contents($filePath);
+
+        $scraper = new TsjScraperService();
+        $totalSaved = $scraper->parseResultsPage($htmlContent);
+
+        $this->info("¡Proceso completado! Se mapearon y guardaron [ $totalSaved ] sentencias con sus expedientes correctos en PostgreSQL.");
     }
 }

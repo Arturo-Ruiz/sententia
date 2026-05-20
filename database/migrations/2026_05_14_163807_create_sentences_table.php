@@ -14,11 +14,11 @@ return new class extends Migration
         Schema::create('sentences', function (Blueprint $table) {
             $table->id();
 
-            $table->string('case_number')->unique()->index(); 
-            $table->string('url')->unique(); 
+            $table->string('case_number')->index();
+            $table->string('url')->unique();
             $table->string('court')->index();
-            $table->longText('content'); 
-            $table->jsonb('metadata')->nullable(); 
+            $table->longText('content')->nullable();
+            $table->jsonb('metadata')->nullable();
 
             $table->timestamps();
         });
