@@ -74,10 +74,15 @@ class ScrapAll extends Command
 
             // BUCLE 2: Atacamos directamente los días hábiles reportados por el endpoint
             foreach ($diasActivos as $diaInfo) {
-                $fechaPublicacion = $diaInfo['FECHA'] ?? null; // ej: "05/02/2026"
-                $cantidadSentencias = $diaInfo['CUANTAS'] ?? 'N/D';
+                if (!is_array($diaInfo)) {
+                    continue;
+                }
 
-                if (!$fechaPublicacion) {
+                // Normalización absoluta de llaves (Mayúsculas, Minúsculas o fallback directo si viene string plano)
+                $fechaPublicacion = $diaInfo['FECHA'] ?? $diaInfo['fecha'] ?? (is_string($diaInfo) ? $diaInfo : null);
+                $cantidadSentencias = $diaInfo['CUANTAS'] ?? $diaInfo['cuantas'] ?? 'N/D';
+
+                if (!$fechaPublicacion || strlen($fechaPublicacion) < 8) {
                     continue;
                 }
 
@@ -89,6 +94,9 @@ class ScrapAll extends Command
                 if ($nuevasGuardadas > 0) {
                     $this->info("      ✅ Se guardaron [$nuevasGuardadas] nuevas decisiones.");
                     $totalGeneralIndexado += $nuevasGuardadas;
+                } else {
+                    // Log de depuración rápida en consola si el día devuelve 0 descargas efectivas
+                    $this->line("      ℹ️ No se agregaron registros nuevos (Ya indexados o vacíos).");
                 }
             }
         }

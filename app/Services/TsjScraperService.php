@@ -12,26 +12,34 @@ use App\Models\Sentence;
 class TsjScraperService
 {
     private string $baseUrl = 'https://www.tsj.gob.ve/decisiones';
+    private array $headers;
 
-    /**
-     * Create a new class instance.
-     */
     public function __construct()
     {
-        //
+        $this->headers = [
+            'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+            'Accept' => 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+            'Accept-Language' => 'es-ES,es;q=0.9,en;q=0.8',
+            'Connection' => 'keep-alive',
+            'Cache-Control' => 'no-cache',
+            'Pragma' => 'no-cache',
+        ];
     }
+
     public function fetchSalas(): array
     {
         try {
-            $response = Http::withoutVerifying()->timeout(10)->get($this->baseUrl, [
-                'p_p_id' => 'senderSentencias_WAR_NoticiasTsjPorlet612',
-                'p_p_lifecycle' => '2',
-                'p_p_state' => 'normal',
-                'p_p_mode' => 'view',
-                'p_p_cacheability' => 'cacheLevelPage',
-                'server[endpoint]' => '/services/WSDecision.HTTPEndpoint',
-                'server[method]' => '/listSala',
-            ]);
+            $response = Http::withoutVerifying()
+                ->withHeaders($this->headers)
+                ->get($this->baseUrl, [
+                    'p_p_id' => 'senderSentencias_WAR_NoticiasTsjPorlet612',
+                    'p_p_lifecycle' => '2',
+                    'p_p_state' => 'normal',
+                    'p_p_mode' => 'view',
+                    'p_p_cacheability' => 'cacheLevelPage',
+                    'server[endpoint]' => '/services/WSDecision.HTTPEndpoint',
+                    'server[method]' => '/listSala',
+                ]);
 
             if ($response->successful()) {
                 $data = $response->json();
@@ -44,76 +52,88 @@ class TsjScraperService
         return [];
     }
 
-    /**
-     * Obtiene los días del año específico donde una sala publicó sentencias
-     */
     public function fetchActiveDays(string $salaId, string $year): array
     {
         try {
-            $response = Http::withoutVerifying()->timeout(12)->get($this->baseUrl, [
-                'p_p_id' => 'displaySentencias_WAR_NoticiasTsjPorlet612',
-                'p_p_lifecycle' => '2',
-                'p_p_state' => 'normal',
-                'p_p_mode' => 'view',
-                'p_p_cacheability' => 'cacheLevelPage',
-                'server[endpoint]' => '/services/WSDecision.HTTPEndpoint',
-                'server[method]' => '/listDayByAnoSala',
-                'SALA' => $salaId,
-                'ANO' => $year,
-            ]);
+            $response = Http::withoutVerifying()
+                ->withHeaders($this->headers)
+                ->get($this->baseUrl, [
+                    'p_p_id' => 'displaySentencias_WAR_NoticiasTsjPorlet612',
+                    'p_p_lifecycle' => '2',
+                    'p_p_state' => 'normal',
+                    'p_p_mode' => 'view',
+                    'p_p_cacheability' => 'cacheLevelPage',
+                    'server[endpoint]' => '/services/WSDecision.HTTPEndpoint',
+                    'server[method]' => '/listDayByAnoSala',
+                    'SALA' => $salaId,
+                    'ANO' => $year,
+                ]);
 
             if ($response->successful()) {
                 $data = $response->json();
 
-                // Accedemos correctamente bajando un nivel en el payload del TSJ
-                $diasRaw = $data['coleccion']['DIA'] ?? [];
+                if (!isset($data['coleccion']) || !is_array($data['coleccion'])) {
+                    return [];
+                }
+
+                $diasRaw = $data['coleccion']['DIA'] ?? $data['coleccion']['dia'] ?? [];
 
                 if (empty($diasRaw)) return [];
 
-                // Si es un solo día (objeto asociativo directo que contiene la clave 'FECHA')
-                // lo metemos dentro de una lista para que el foreach del comando no rompa.
-                if (isset($diasRaw['FECHA'])) {
+                if (is_array($diasRaw) && (isset($diasRaw['FECHA']) || isset($diasRaw['fecha']))) {
                     return [$diasRaw];
                 }
 
-                return $diasRaw;
+                return is_array($diasRaw) ? $diasRaw : [];
             }
         } catch (\Exception $e) {
-            Log::error("Error consultando días activos de la Sala #{$salaId} para el año {$year}: " . $e->getMessage());
+            Log::error("Error consultando días activos de la Sala #{$salaId}: " . $e->getMessage());
         }
 
         return [];
     }
 
-    /**
-     * Descarga el listado de decisiones publicadas en una fecha exacta y para una sala dada
-     */
     public function scrapeActiveDay(string $fecha, string $salaId, string $salaRealName, $output = null): int
     {
         try {
-            $response = Http::withoutVerifying()->timeout(15)->get($this->baseUrl, [
-                'p_p_id' => 'displayListaDecision_WAR_NoticiasTsjPorlet612',
-                'p_p_lifecycle' => '2',
-                'p_p_state' => 'normal',
-                'p_p_mode' => 'view',
-                'p_p_cacheability' => 'cacheLevelPage',
-                'server[endpoint]' => '/services/WSDecision.HTTPEndpoint',
-                'server[method]' => '/listDecisionByFechaSala',
-                'FECHA' => $fecha,
-                'SALA' => $salaId,
-            ]);
+            $response = Http::withoutVerifying()
+                ->withHeaders($this->headers)
+                ->timeout(60)
+                ->get($this->baseUrl, [
+                    'p_p_id' => 'displayListaDecision_WAR_NoticiasTsjPorlet612',
+                    'p_p_lifecycle' => '2',
+                    'p_p_state' => 'normal',
+                    'p_p_mode' => 'view',
+                    'p_p_cacheability' => 'cacheLevelPage',
+                    'server[endpoint]' => '/services/WSDecision.HTTPEndpoint',
+                    'server[method]' => '/listDecisionByFechaSala',
+                    'FECHA' => $fecha,
+                    'SALA' => $salaId,
+                ]);
 
             if (!$response->successful()) return 0;
 
             $data = $response->json();
 
-            // Accedemos a la colección interna de sentencias devueltas
-            $decisionesRaw = $data['coleccion']['DECISION'] ?? [];
+            if (!isset($data['coleccion']) || !is_array($data['coleccion'])) {
+                return 0;
+            }
 
-            if (empty($decisionesRaw)) return 0;
+            $decisionesRaw = $data['coleccion']['SENTENCIA']
+                ?? $data['coleccion']['sentencia']
+                ?? $data['coleccion']['DECISION']
+                ?? $data['coleccion']['decision']
+                ?? [];
 
-            // Al igual que con los días, si hay una sola sentencia el TSJ devuelve un array asociativo directo
-            if (isset($decisionesRaw['URL']) || isset($decisionesRaw['ID'])) {
+            if (empty($decisionesRaw)) {
+                if (count($data['coleccion']) > 0 && !isset($data['coleccion'][0])) {
+                    $decisionesRaw = [$data['coleccion']];
+                } else {
+                    return 0;
+                }
+            }
+
+            if (is_array($decisionesRaw) && (isset($decisionesRaw['SSENTID']) || isset($decisionesRaw['SSENTNOMBREDOC']))) {
                 $decisionesRaw = [$decisionesRaw];
             }
 
@@ -124,45 +144,70 @@ class TsjScraperService
         }
     }
 
-    /**
-     * Procesa los resultados estructurados del JSON, extrae metadatos y guarda el contenido extendido
-     */
     public function processJsonResults(array $decisiones, string $courtName, $output = null): int
     {
         $scrapedCount = 0;
+        $totalPotential = count($decisiones);
+        $skipped = 0;
 
-        foreach ($decisiones as $decision) {
-            // Mapeamos la URL de la sentencia (la API suele devolver la clave en mayúsculas 'URL')
-            $decisionUrl = $decision['URL'] ?? null;
+        $mesesEspanol = [
+            '01' => 'enero',
+            '02' => 'febrero',
+            '03' => 'marzo',
+            '04' => 'abril',
+            '05' => 'mayo',
+            '06' => 'junio',
+            '07' => 'julio',
+            '08' => 'agosto',
+            '09' => 'septiembre',
+            '10' => 'octubre',
+            '11' => 'noviembre',
+            '12' => 'diciembre'
+        ];
 
-            if (!$decisionUrl) {
+        foreach ($decisiones as $index => $decision) {
+            if (!is_array($decision)) continue;
+
+            $docName = $decision['SSENTNOMBREDOC'] ?? null;
+            $salaDir = $decision['SSALADIR'] ?? null;
+            $fechaRaw = $decision['DSENTFECHA'] ?? '';
+
+            // VALIDACIÓN DE REGISTRO VÁLIDO
+            if (!$docName || $docName === 'null' || !$salaDir || empty($fechaRaw)) {
+                if ($output) {
+                    $output->info("    ⏭️ Saltando registro #" . ($index + 1) . ": Documento no disponible (null).");
+                }
+                $skipped++;
                 continue;
             }
 
-            // Control estricto de duplicados en PostgreSQL
+            $partsFecha = explode('/', $fechaRaw);
+            $mesIndex = $partsFecha[1] ?? '01';
+            $mesFolder = $mesesEspanol[$mesIndex] ?? 'enero';
+            $decisionUrl = "{$this->baseUrl}/{$salaDir}/{$mesFolder}/{$docName}";
+
             if (Sentence::where('url', $decisionUrl)->exists()) {
+                $skipped++;
                 continue;
             }
+            
+            $sentenceNumber = $decision['SSENTNUMERO'] ?? 'S/N';
+            $caseNumber     = $decision['SSENTEXPEDIENTE'] ?? 'S/E-' . uniqid();
 
-            // Troceado inteligente de la URL para extraer datos referenciales
-            $urlParts = explode('-', basename($decisionUrl));
-            $sentenceNumber = $decision['NUMERO'] ?? ($urlParts[1] ?? 'S/N');
-            $caseNumber = $decision['EXPEDIENTE'] ?? ($urlParts[2] ?? 'S/E-' . uniqid());
+
+            $partsRaw = $decision['SSENTPARTES'] ?? '';
+            $partsString = is_array($partsRaw) ? '' : (string)$partsRaw;
+            $partsClean = trim(preg_replace('/\s+/', ' ', $partsString));
+
+            $summaryRaw = $decision['SSENTDECISION'] ?? '';
+            $summaryString = is_array($summaryRaw) ? '' : (string)$summaryRaw;
 
             if ($output) {
                 $output->warn("    💾 Descargando -> Exp: $caseNumber | Sentencia N° $sentenceNumber...");
             }
 
-            // Extracción limpia desde las propiedades del objeto de la API del TSJ
-            $procedure = $decision['PROCEDIMIENTO'] ?? null;
-            $parts = $decision['PARTES'] ?? null;
-            $decisionSummary = $decision['DECISION'] ?? null;
-            $magistrate = $decision['PONENTE'] ?? null;
-
-            // Crawling del documento HTML extendido (Aquí sí consumimos la web final)
             $fullContent = $this->downloadCleanContent($decisionUrl);
 
-            // Persistencia de Datos
             Sentence::create([
                 'url' => $decisionUrl,
                 'case_number' => $caseNumber,
@@ -170,51 +215,64 @@ class TsjScraperService
                 'content' => $fullContent,
                 'metadata' => [
                     'sentence_number' => $sentenceNumber,
-                    'procedure' => $procedure,
-                    'parts' => $parts,
-                    'decision_summary' => $decisionSummary,
-                    'magistrate' => $magistrate,
+                    'procedure' => $decision['SPROCDESCRIPCION'] ?? null,
+                    'parts' => $partsClean, // Usamos la variable sanitizada
+                    'decision_summary' => $summaryString, // Usamos la variable sanitizada
+                    'magistrate' => $decision['SPONENOMBRE'] ?? null,
                     'scraped_at' => now()->toDateTimeString(),
                 ]
             ]);
 
             $scrapedCount++;
-
-            // Delay estratégico anti-baneo de 700 milisegundos
-            usleep(700000);
+            usleep(1200000);
         }
 
         return $scrapedCount;
     }
 
-    /**
-     * Obtiene el texto limpio de la sentencia descartando headers, scripts y estilos
-     */
     public function downloadCleanContent(string $url): string
     {
-        try {
-            $response = Http::withoutVerifying()->timeout(15)->get($url);
-            if (!$response->successful()) return 'Error de comunicación con el repositorio central.';
+        for ($attempt = 1; $attempt <= 3; $attempt++) {
+            try {
+                $response = Http::withoutVerifying()
+                    ->withHeaders($this->headers)
+                    ->timeout(25)
+                    ->get($url);
 
-            $html = $response->body();
-            if (!mb_check_encoding($html, 'UTF-8')) {
-                $html = mb_convert_encoding($html, 'UTF-8', 'ISO-8859-1');
-            }
+                if ($response->successful()) {
+                    // CORRECCIÓN: Eliminamos el modificador '//TRANSLIT' que causaba el error
+                    $rawBody = $response->body();
+                    $html = $rawBody;
 
-            $crawler = new Crawler($html);
-            $crawler->filter('script, style, link, meta, header, footer, nav, table:first-of-type')->each(function (Crawler $node) {
-                foreach ($node as $n) {
-                    if ($n->parentNode) $n->parentNode->removeChild($n);
+                    $crawler = new Crawler($html);
+
+                    // Limpieza de elementos innecesarios
+                    $crawler->filter('script, style, link, meta, header, footer, nav, table:first-of-type, .portlet-boundary')->each(function (Crawler $node) {
+                        foreach ($node as $n) {
+                            if ($n->parentNode) $n->parentNode->removeChild($n);
+                        }
+                    });
+
+                    $extractedText = '';
+                    if ($crawler->filter('body')->count() > 0) {
+                        $extractedText = trim($crawler->filter('body')->text());
+                    } else {
+                        $extractedText = trim($crawler->text());
+                    }
+
+                    if (!empty($extractedText)) {
+                        return $extractedText;
+                    }
                 }
-            });
-
-            if ($crawler->filter('body')->count() > 0) {
-                return trim($crawler->filter('body')->text());
+            } catch (\Exception $e) {
+                Log::warning("Intento #{$attempt} fallido para URL: {$url}. Motivo: " . $e->getMessage());
             }
 
-            return trim($crawler->text());
-        } catch (\Exception $e) {
-            return 'No se pudo recuperar el cuerpo del documento por timeout o congestión de la red.';
+            if ($attempt < 3) {
+                usleep(1500000 * $attempt);
+            }
         }
+
+        return 'Error al procesar contenido (Encoding o Red).';
     }
 }
