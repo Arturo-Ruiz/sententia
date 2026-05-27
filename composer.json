@@ -16,6 +16,7 @@
         "laravel/tinker": "^3.0",
         "livewire/flux": "^2.13.1",
         "livewire/livewire": "^4.1",
+        "openai-php/laravel": "^0.19.1",
         "symfony/dom-crawler": "^8.0"
     },
     "require-dev": {
