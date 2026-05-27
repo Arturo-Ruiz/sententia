@@ -10,20 +10,24 @@ return new class extends Migration
     /**
      * Run the migrations.
      */
+
     public function up(): void
     {
+        Schema::ensureVectorExtensionExists();
+
         Schema::create('sentence_chunks', function (Blueprint $table) {
             $table->id();
 
             $table->foreignId('sentence_id')->constrained('sentences')->onDelete('cascade');
+            $table->text('content');
+            $table->integer('chunk_index');
 
-            $table->text('content'); 
-            $table->integer('chunk_index'); 
+            $table->vector('embedding', dimensions: 1024)->nullable();
 
             $table->timestamps();
         });
 
-        DB::statement('ALTER TABLE sentence_chunks ADD COLUMN embedding vector(1024);');
+        DB::statement('CREATE INDEX IF NOT EXISTS sentence_chunks_embedding_hnsw_idx ON sentence_chunks USING hnsw (embedding vector_cosine_ops);');
     }
 
     /**

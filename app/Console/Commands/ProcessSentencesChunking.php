@@ -6,10 +6,10 @@ use Illuminate\Console\Attributes\Description;
 use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Str;
 
 #[Signature('app:chunk {limit=100 : Cantidad de sentencias a procesar por tanda}')]
-#[Description('Pica las sentencias judiciales en bloques y genera sus embeddings con DeepSeek')]
+#[Description('Procesa sentencias en alta velocidad usando las macros de embeddings de Laravel 13')]
 class ProcessSentencesChunking extends Command
 {
     /**
@@ -19,7 +19,7 @@ class ProcessSentencesChunking extends Command
     {
         $limit = (int) $this->argument('limit');
         
-        // 1. Buscamos sentencias que aún no tengan fragmentos procesados
+        // 1. Traemos las sentencias pendientes
         $sentences = DB::table('sentences')
             ->leftJoin('sentence_chunks', 'sentences.id', '=', 'sentence_chunks.sentence_id')
             ->whereNull('sentence_chunks.id')
@@ -32,66 +32,55 @@ class ProcessSentencesChunking extends Command
             return 0;
         }
 
-        $apiKey = env('DEEPSEEK_API_KEY');
-        
-        if (empty($apiKey)) {
-            $this->error('🚨 Error: No se encontró la variable DEEPSEEK_API_KEY en tu archivo .env');
-            return 1;
-        }
-
-        $this->info("Procesando {$sentences->count()} sentencias directamente vía HTTP...");
+        $this->info("🚀 L13 SDK: Indexando {$sentences->count()} sentencias vía Cohere...");
 
         foreach ($sentences as $sentence) {
             if (empty($sentence->content)) {
                 continue;
             }
 
-            // 2. Limpieza de codificación para evitar strings corruptos
+            // 2. Limpieza de caracteres y codificación
             $contentClean = mb_convert_encoding($sentence->content, 'UTF-8', 'UTF-8');
             $contentClean = preg_replace('/[\x00-\x1F\x7F]/', '', $contentClean);
-
-            // 3. Troceado limpio por palabras (Aprox. 250 palabras por fragmento)
+            
+            // 3. Troceado por palabras (~300 palabras por fragmento)
             $words = explode(' ', $contentClean);
-            $chunks = array_chunk($words, 250);
+            $rawChunks = array_chunk($words, 300); 
 
-            foreach ($chunks as $index => $chunkWords) {
-                $chunkText = implode(' ', $chunkWords);
-                
-                if (blank($chunkText)) {
-                    continue;
+            $textToEmbed = [];
+            foreach ($rawChunks as $chunkWords) {
+                $text = trim(implode(' ', $chunkWords));
+                if (!empty($text)) {
+                    $textToEmbed[] = $text;
+                }
+            }
+
+            if (empty($textToEmbed)) {
+                continue;
+            }
+
+            $this->comment(" -> Sentencia ID {$sentence->id}: Generando embeddings para " . count($textToEmbed) . " chunks...");
+
+            try {
+                // 4. GENERACIÓN MEDIANTE MACRO NATIVA (Laravel AI SDK)
+                // Usamos Str::of() sobre cada fragmento de texto para llamar a toEmbeddings()
+                $embeddingsResult = [];
+                foreach ($textToEmbed as $chunkText) {
+                    // Especificamos el modelo multilingual de Cohere configurado en tu config/ai.php
+                    $embeddingsResult[] = Str::of($chunkText)->toEmbeddings(
+                        model: 'embed-multilingual-v3.0',
+                        provider: 'cohere'
+                    );
                 }
 
-                try {
-                    // 4. Petición HTTP a la URL correcta de DeepSeek (/v1/embeddings)
-                    $response = Http::withToken($apiKey)
-                        ->timeout(15)
-                        ->withHeaders([
-                            'Content-Type' => 'application/json',
-                            'Accept' => 'application/json'
-                        ])
-                        ->post('https://api.deepseek.com/v1/embeddings', [
-                            'model' => 'deepseek-embedding',
-                            'input' => $chunkText,
-                        ]);
-
-                    if ($response->failed()) {
-                        $this->error("🚨 HTTP STATUS: " . $response->status());
-                        $this->error("🚨 CUERPO: " . ($response->body() ?: 'Vacio/Null'));
-                        throw new \Exception("API Error");
-                    }
-
-                    $responseData = $response->json();
-                    
-                    if (!isset($responseData['data'][0]['embedding'])) {
-                        throw new \Exception("Estructura de respuesta inesperada");
-                    }
-
-                    $embedding = $responseData['data'][0]['embedding'];
-                    
-                    // Convertimos el array de números a formato string de pgvector: '[0.12, -0.34, ...]'
+                // 5. Inserción masiva atómica (Todo o nada) en Postgres
+                DB::beginTransaction();
+                
+                foreach ($textToEmbed as $index => $chunkText) {
+                    $embedding = $embeddingsResult[$index];
+                    // Formateamos el array de floats de Laravel para el tipo pgvector
                     $vectorString = '[' . implode(',', $embedding) . ']';
 
-                    // 5. Guardamos el fragmento y su vector en la base de datos de Docker
                     DB::table('sentence_chunks')->insert([
                         'sentence_id' => $sentence->id,
                         'content' => $chunkText,
@@ -100,19 +89,28 @@ class ProcessSentencesChunking extends Command
                         'created_at' => now(),
                         'updated_at' => now(),
                     ]);
-
-                    // ⏱️ Pausa de cortesía (300ms) para respetar el rate-limit de la API
-                    usleep(300000);
-
-                } catch (\Exception $e) {
-                    $this->error("Error en fragmento {$index} de la sentencia ID {$sentence->id}: " . $e->getMessage());
-                    continue;
                 }
+                
+                DB::commit();
+                $this->info(" ✅ Sentencia ID {$sentence->id} procesada con éxito.");
+
+            } catch (\Exception $e) {
+                DB::rollBack();
+                $this->error(" ❌ Error en la sentencia {$sentence->id}: " . $e->getMessage());
+                
+                // Mitigación rápida de red por ráfagas
+                if (str_contains(strtolower($e->getMessage()), '429') || str_contains(strtolower($e->getMessage()), 'limit')) {
+                    $this->warn("    Pausa de respiro de 3 segundos...");
+                    sleep(3);
+                }
+                continue;
             }
-            $this->comment("Sentencia ID {$sentence->id} procesada con éxito.");
+
+            // Pausa imperceptible para balancear la carga de Docker
+            usleep(10000);
         }
 
-        $this->info('¡Tanda completada!');
+        $this->info('🎯 ¡Tanda masiva completada bajo los estándares de Laravel 13!');
         return 0;
     }
 }
