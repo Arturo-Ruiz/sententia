@@ -23,7 +23,7 @@ return new class extends Migration
             $table->timestamps();
         });
 
-        DB::statement('ALTER TABLE sentence_chunks ADD COLUMN embedding vector(1536);');
+        DB::statement('ALTER TABLE sentence_chunks ADD COLUMN embedding vector(1024);');
     }
 
     /**
