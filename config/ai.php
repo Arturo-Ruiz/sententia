@@ -15,9 +15,9 @@ return [
 
     'default' => 'groq',
     'default_for_images' => 'gemini',
-    'default_for_audio' => 'openai',
-    'default_for_transcription' => 'openai',
-    'default_for_embeddings' => 'openai',
+    'default_for_audio' => 'groq',
+    'default_for_transcription' => 'groq',
+    'default_for_embeddings' => 'cohere',
     'default_for_reranking' => 'cohere',
 
     /*
@@ -50,6 +50,10 @@ return [
     */
 
     'providers' => [
+        'groq' => [
+            'driver' => 'groq',
+            'key' => env('GROQ_API_KEY'),
+        ],
         'anthropic' => [
             'driver' => 'anthropic',
             'key' => env('ANTHROPIC_API_KEY'),
@@ -96,12 +100,6 @@ return [
             'key' => env('GEMINI_API_KEY'),
             'url' => env('GEMINI_URL', 'https://generativelanguage.googleapis.com/v1beta/'),
         ],
-
-        'groq' => [
-            'driver' => 'groq',
-            'key' => env('GROQ_API_KEY'),
-        ],
-
         'jina' => [
             'driver' => 'jina',
             'key' => env('JINA_API_KEY'),
