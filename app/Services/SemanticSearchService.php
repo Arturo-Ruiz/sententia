@@ -19,24 +19,30 @@ class SemanticSearchService
     {
         if (empty(trim($query))) return collect();
 
-        $resultados = DB::table('sentence_chunks')->where('content', 'LIKE', '%' . $query . '%')
+        $textResults = DB::table('sentence_chunks')
+            ->join('sentences', 'sentence_chunks.sentence_id', '=', 'sentences.id')
+            ->select('sentence_chunks.content', 'sentences.case_number', 'sentences.date')
+            ->where('sentences.case_number', 'LIKE', "%$query%")
+            ->orWhere('sentence_chunks.content', 'LIKE', "%$query%")
+            ->orderBy('sentences.date', 'ASC')
             ->limit($limit)
             ->get();
 
-        if ($resultados->isNotEmpty()) return $resultados;
+        if ($textResults->isNotEmpty()) return $textResults;
 
-        $queryEmbedding = Str::of($query)->toEmbeddings(
-            model: 'embed-multilingual-v3.0',
-            provider: 'cohere'
-        );
-
-        // CORRECCIÓN: $queryEmbedding ya es un array, no necesita toArray()
+        $queryEmbedding = Str::of($query)->toEmbeddings(model: 'embed-multilingual-v3.0', provider: 'cohere');
         $vectorString = '[' . implode(',', $queryEmbedding) . ']';
 
         return DB::table('sentence_chunks')
-            ->select(['id', 'sentence_id', 'content', DB::raw("1 - (embedding <=> '$vectorString') as similarity_score")])
-            ->whereRaw("1 - (embedding <=> '$vectorString') > 0.3")
-            ->orderByRaw("embedding <=> '$vectorString' ASC")
+            ->join('sentences', 'sentence_chunks.sentence_id', '=', 'sentences.id')
+            ->select([
+                'sentence_chunks.content',
+                'sentences.case_number',
+                'sentences.date'
+            ])
+            ->whereRaw("1 - (sentence_chunks.embedding <=> '$vectorString') > 0.3")
+            ->orderByRaw("sentence_chunks.embedding <=> '$vectorString' ASC")
+            ->orderBy('sentences.date', 'ASC') 
             ->limit($limit)
             ->get();
     }
