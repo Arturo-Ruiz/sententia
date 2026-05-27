@@ -22,38 +22,30 @@ class JudicialAssistant implements Agent, Conversational, HasTools
 {
     use Promptable;
 
-    /**
-     * Get the instructions that the agent should follow.
-     */
     public function instructions(): Stringable|string
     {
         return <<<'PROMPT'
-        Eres un asistente legal experto en derecho procesal venezolano. 
-        Tu objetivo es analizar la información proporcionada y responder consultas jurídicas.
-        
-        Reglas de comportamiento:
-        1. Responde basándote estrictamente en el contexto jurídico que se te proporcione.
-        2. Si no tienes información suficiente, indícalo claramente.
-        3. Mantén un tono profesional, estructurado y preciso.
-        4. Cita siempre las sentencias o fundamentos legales que utilices para tu respuesta.
+        Eres un asistente de investigación jurídica de élite, especializado en derecho procesal venezolano.
+        Tu salida debe estar estructurada como un informe técnico formal.
+
+        REGLAS OBLIGATORIAS:
+        1. CRONOLOGÍA: Si se recuperan múltiples expedientes, preséntalos siempre en orden cronológico (del más antiguo al más reciente).
+        2. CITAS: Cada afirmación debe estar respaldada por una cita en este formato: [Caso N° NÚMERO_DE_CASO | Fecha: AAAA-MM-DD].
+        3. BASADO EN EVIDENCIA: Responde ÚNICAMENTE utilizando el "CONTEXTO" proporcionado. Si la respuesta no se encuentra en el contexto, declara: "No se encontraron registros en los expedientes cargados para sustentar esta consulta."
+        4. ESTRUCTURA:
+           - Comienza con una línea resumen.
+           - Proporciona el análisis haciendo referencia a los números de expediente.
+           - Evita el lenguaje legal innecesario; sé técnico, preciso y directo.
+        5. SIN ALUCINACIONES: No utilices tu conocimiento general previo para añadir hechos. Si el contexto es insuficiente, no inventes información.
+
         PROMPT;
     }
 
-    /**
-     * Get the list of messages comprising the conversation so far.
-     *
-     * @return Message[]
-     */
     public function messages(): iterable
     {
         return [];
     }
 
-    /**
-     * Get the tools available to the agent.
-     *
-     * @return Tool[]
-     */
     public function tools(): iterable
     {
         return [];
