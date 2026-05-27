@@ -17,26 +17,26 @@ class SemanticSearchService
 
     public function search(string $query, int $limit = 5)
     {
-        if (empty(trim($query))) {
-            return collect();
-        }
+        if (empty(trim($query))) return collect();
+
+        $resultados = DB::table('sentence_chunks')->where('content', 'LIKE', '%' . $query . '%')
+            ->limit($limit)
+            ->get();
+
+        if ($resultados->isNotEmpty()) return $resultados;
 
         $queryEmbedding = Str::of($query)->toEmbeddings(
             model: 'embed-multilingual-v3.0',
             provider: 'cohere'
         );
 
+        // CORRECCIÓN: $queryEmbedding ya es un array, no necesita toArray()
         $vectorString = '[' . implode(',', $queryEmbedding) . ']';
 
         return DB::table('sentence_chunks')
-            ->join('sentences', 'sentence_chunks.sentence_id', '=', 'sentences.id')
-            ->select([
-                'sentences.id as sentence_id',
-                'sentence_chunks.content as chunk_content',
-                'sentence_chunks.chunk_index',
-                DB::raw("1 - (sentence_chunks.embedding <=> '$vectorString') as similarity_score")
-            ])
-            ->orderByRaw("sentence_chunks.embedding <=> '$vectorString'")
+            ->select(['id', 'sentence_id', 'content', DB::raw("1 - (embedding <=> '$vectorString') as similarity_score")])
+            ->whereRaw("1 - (embedding <=> '$vectorString') > 0.3")
+            ->orderByRaw("embedding <=> '$vectorString' ASC")
             ->limit($limit)
             ->get();
     }
