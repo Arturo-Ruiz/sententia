@@ -168,13 +168,19 @@ class TsjScraperService
         foreach ($decisiones as $index => $decision) {
             if (!is_array($decision)) continue;
 
+            // 📌 SANITIZACIÓN ANTE RESIDUOS {"@nil": "true"} DE LA API
             $docName = $decision['SSENTNOMBREDOC'] ?? null;
+            if (is_array($docName)) $docName = null;
+
             $salaDir = $decision['SSALADIR'] ?? null;
+            if (is_array($salaDir)) $salaDir = null;
+
             $fechaRaw = $decision['DSENTFECHA'] ?? '';
+            if (is_array($fechaRaw)) $fechaRaw = '';
 
             if (!$docName || $docName === 'null' || !$salaDir || empty($fechaRaw)) {
                 if ($output) {
-                    $output->info("    ⏭️ Saltando registro #" . ($index + 1) . ": Documento no disponible (null).");
+                    $output->info("    ⏭️ Saltando registro #" . ($index + 1) . ": Documento o ruta no disponible.");
                 }
                 $skipped++;
                 continue;
@@ -190,8 +196,16 @@ class TsjScraperService
                 continue;
             }
 
-            $sentenceNumber = $decision['SSENTNUMERO'] ?? 'S/N';
-            $caseNumber     = $decision['SSENTEXPEDIENTE'] ?? 'S/E-' . uniqid();
+            // 📌 EVITA EL ERROR "Array to string conversion" EN EL TRATAMIENTO DE STRINGS
+            $sentenceNumber = $decision['SSENTNUMERO'] ?? null;
+            if (is_array($sentenceNumber) || empty($sentenceNumber)) {
+                $sentenceNumber = 'S/N';
+            }
+
+            $caseNumber = $decision['SSENTEXPEDIENTE'] ?? null;
+            if (is_array($caseNumber) || empty($caseNumber)) {
+                $caseNumber = 'S/E-' . uniqid();
+            }
 
             $partsRaw = $decision['SSENTPARTES'] ?? '';
             $partsString = is_array($partsRaw) ? '' : (string)$partsRaw;
@@ -199,6 +213,13 @@ class TsjScraperService
 
             $summaryRaw = $decision['SSENTDECISION'] ?? '';
             $summaryString = is_array($summaryRaw) ? '' : (string)$summaryRaw;
+
+            // Saneamiento de campos que van a la metadata estructurada
+            $procedure = $decision['SPROCDESCRIPCION'] ?? null;
+            if (is_array($procedure)) $procedure = null;
+
+            $magistrate = $decision['SPONENOMBRE'] ?? null;
+            if (is_array($magistrate)) $magistrate = null;
 
             if ($output) {
                 $output->warn("    💾 Descargando -> Exp: $caseNumber | Sentencia N° $sentenceNumber...");
@@ -213,10 +234,10 @@ class TsjScraperService
                 'content' => $fullContent,
                 'metadata' => [
                     'sentence_number' => $sentenceNumber,
-                    'procedure' => $decision['SPROCDESCRIPCION'] ?? null,
+                    'procedure' => $procedure,
                     'parts' => $partsClean,
                     'decision_summary' => $summaryString,
-                    'magistrate' => $decision['SPONENOMBRE'] ?? null,
+                    'magistrate' => $magistrate,
                     'scraped_at' => now()->toDateTimeString(),
                 ]
             ]);
