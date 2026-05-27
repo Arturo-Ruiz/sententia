@@ -8,7 +8,6 @@ use Symfony\Component\DomCrawler\Crawler;
 
 use App\Models\Sentence;
 
-
 class TsjScraperService
 {
     private string $baseUrl = 'https://www.tsj.gob.ve/decisiones';
@@ -31,6 +30,7 @@ class TsjScraperService
         try {
             $response = Http::withoutVerifying()
                 ->withHeaders($this->headers)
+                ->timeout(300)
                 ->get($this->baseUrl, [
                     'p_p_id' => 'senderSentencias_WAR_NoticiasTsjPorlet612',
                     'p_p_lifecycle' => '2',
@@ -57,6 +57,7 @@ class TsjScraperService
         try {
             $response = Http::withoutVerifying()
                 ->withHeaders($this->headers)
+                ->timeout(300)
                 ->get($this->baseUrl, [
                     'p_p_id' => 'displaySentencias_WAR_NoticiasTsjPorlet612',
                     'p_p_lifecycle' => '2',
@@ -98,7 +99,7 @@ class TsjScraperService
         try {
             $response = Http::withoutVerifying()
                 ->withHeaders($this->headers)
-                ->timeout(60)
+                ->timeout(300)
                 ->get($this->baseUrl, [
                     'p_p_id' => 'displayListaDecision_WAR_NoticiasTsjPorlet612',
                     'p_p_lifecycle' => '2',
@@ -147,7 +148,6 @@ class TsjScraperService
     public function processJsonResults(array $decisiones, string $courtName, $output = null): int
     {
         $scrapedCount = 0;
-        $totalPotential = count($decisiones);
         $skipped = 0;
 
         $mesesEspanol = [
@@ -172,7 +172,6 @@ class TsjScraperService
             $salaDir = $decision['SSALADIR'] ?? null;
             $fechaRaw = $decision['DSENTFECHA'] ?? '';
 
-            // VALIDACIÓN DE REGISTRO VÁLIDO
             if (!$docName || $docName === 'null' || !$salaDir || empty($fechaRaw)) {
                 if ($output) {
                     $output->info("    ⏭️ Saltando registro #" . ($index + 1) . ": Documento no disponible (null).");
@@ -190,10 +189,9 @@ class TsjScraperService
                 $skipped++;
                 continue;
             }
-            
+
             $sentenceNumber = $decision['SSENTNUMERO'] ?? 'S/N';
             $caseNumber     = $decision['SSENTEXPEDIENTE'] ?? 'S/E-' . uniqid();
-
 
             $partsRaw = $decision['SSENTPARTES'] ?? '';
             $partsString = is_array($partsRaw) ? '' : (string)$partsRaw;
@@ -216,15 +214,14 @@ class TsjScraperService
                 'metadata' => [
                     'sentence_number' => $sentenceNumber,
                     'procedure' => $decision['SPROCDESCRIPCION'] ?? null,
-                    'parts' => $partsClean, // Usamos la variable sanitizada
-                    'decision_summary' => $summaryString, // Usamos la variable sanitizada
+                    'parts' => $partsClean,
+                    'decision_summary' => $summaryString,
                     'magistrate' => $decision['SPONENOMBRE'] ?? null,
                     'scraped_at' => now()->toDateTimeString(),
                 ]
             ]);
 
             $scrapedCount++;
-            usleep(1200000);
         }
 
         return $scrapedCount;
@@ -234,13 +231,16 @@ class TsjScraperService
     {
         for ($attempt = 1; $attempt <= 3; $attempt++) {
             try {
+                if (str_contains($url, 'www.tsj.gob.ve')) {
+                    $url = str_replace('www.tsj.gob.ve', 'historico.tsj.gob.ve', $url);
+                }
+
                 $response = Http::withoutVerifying()
                     ->withHeaders($this->headers)
-                    ->timeout(25)
+                    ->timeout(300)
                     ->get($url);
 
                 if ($response->successful()) {
-                    // CORRECCIÓN: Eliminamos el modificador '//TRANSLIT' que causaba el error
                     $rawBody = $response->body();
                     $html = $rawBody;
 
@@ -266,10 +266,10 @@ class TsjScraperService
                 }
             } catch (\Exception $e) {
                 Log::warning("Intento #{$attempt} fallido para URL: {$url}. Motivo: " . $e->getMessage());
-            }
 
-            if ($attempt < 3) {
-                usleep(1500000 * $attempt);
+                if ($attempt < 3) {
+                    usleep(1500000 * $attempt);
+                }
             }
         }
 

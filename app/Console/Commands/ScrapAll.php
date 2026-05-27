@@ -88,15 +88,28 @@ class ScrapAll extends Command
 
                 $this->line("     📅 Raspando Fecha: $fechaPublicacion ($cantidadSentencias Sentencias potenciales)...");
 
-                // Ejecutamos la extracción para ese día exacto pasando $this para el output visual
                 $nuevasGuardadas = $scraper->scrapeActiveDay($fechaPublicacion, $salaId, $salaName, $this);
 
                 if ($nuevasGuardadas > 0) {
-                    $this->info("      ✅ Se guardaron [$nuevasGuardadas] nuevas decisiones.");
                     $totalGeneralIndexado += $nuevasGuardadas;
+                }
+
+                if (is_numeric($cantidadSentencias)) {
+                    $esperadas = (int)$cantidadSentencias;
+
+                    if ($nuevasGuardadas === $esperadas) {
+                        // Caso ideal: Primer raspado del día y se bajaron todas
+                        $this->info("      ✅ ¡Día Conciliado! API reportó $esperadas y se guardaron $nuevasGuardadas nuevas.");
+                    } elseif ($nuevasGuardadas === 0) {
+                        // Ya las tenías guardadas de antes o el día viene vacío de verdad
+                        $this->line("      ℹ️ API reporta $esperadas en total. 0 nuevas (Ya indexadas en DB anteriormente).");
+                    } else {
+                        // Alerta visual si bajaste menos de lo que dice la API (hubo fallas de red en el camino)
+                        $this->warn("      ⚠️ Mismatch: API reporta $esperadas totales, pero en este viaje solo se guardaron $nuevasGuardadas nuevas.");
+                    }
                 } else {
-                    // Log de depuración rápida en consola si el día devuelve 0 descargas efectivas
-                    $this->line("      ℹ️ No se agregaron registros nuevos (Ya indexados o vacíos).");
+                    // Fallback si la API no devolvió un número válido en 'CUANTAS'
+                    $this->line("      ℹ️ Procesadas: $nuevasGuardadas nuevas (Total API: $cantidadSentencias).");
                 }
             }
         }
