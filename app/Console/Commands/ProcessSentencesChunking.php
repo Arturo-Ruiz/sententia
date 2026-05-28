@@ -23,6 +23,7 @@ class ProcessSentencesChunking extends Command
             ->select('sentences.id', 'sentences.content', 'sentences.case_number', 'sentences.court', 'sentences.metadata')
             ->limit($limit)
             ->offset($offset)
+            ->orderBy('sentences.id', 'asc')
             ->get();
 
         foreach ($sentences as $sentence) {
