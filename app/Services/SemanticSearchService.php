@@ -21,10 +21,9 @@ class SemanticSearchService
 
         $textResults = DB::table('sentence_chunks')
             ->join('sentences', 'sentence_chunks.sentence_id', '=', 'sentences.id')
-            ->select('sentence_chunks.content', 'sentences.case_number', 'sentences.date')
+            ->select('sentence_chunks.content', 'sentences.case_number')
             ->where('sentences.case_number', 'LIKE', "%$query%")
             ->orWhere('sentence_chunks.content', 'LIKE', "%$query%")
-            ->orderBy('sentences.date', 'ASC')
             ->limit($limit)
             ->get();
 
@@ -38,11 +37,9 @@ class SemanticSearchService
             ->select([
                 'sentence_chunks.content',
                 'sentences.case_number',
-                'sentences.date'
             ])
             ->whereRaw("1 - (sentence_chunks.embedding <=> '$vectorString') > 0.3")
             ->orderByRaw("sentence_chunks.embedding <=> '$vectorString' ASC")
-            ->orderBy('sentences.date', 'ASC') 
             ->limit($limit)
             ->get();
     }
