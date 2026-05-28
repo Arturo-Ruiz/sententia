@@ -37,13 +37,22 @@ class SearchChat extends Component
                     unset($meta['scraped_at']);
 
                     $partes = $meta['parts'] ?? 'Partes no especificadas';
+                    $magistrado = $meta['magistrate'] ?? 'Magistrado no especificado';
+                    $procedimiento = $meta['procedure'] ?? 'Procedimiento no especificado';
 
-                    $fecha = $r->date ?? ($meta['date'] ?? 'Fecha no especificada');
+                    // 3. Convertimos el resto de la metadata (ej. decision_summary) a texto
+                    $metaString = collect($meta)->map(fn($v, $k) => strtoupper($k) . ": $v")->implode("\n");
 
-                    $metaString = collect($meta)->map(fn($v, $k) => "$k: $v")->implode(' | ');
-
-                    return "### SENTENCIA: [Caso #{$r->case_number} | Fecha: {$fecha}]\nPARTES INVOLUCRADAS: {$partes}\nMETADATA: {$metaString}\nCONTENIDO: {$r->content}";
-                })->implode("\n\n---\n\n")
+                    // 4. Construimos el bloque de texto MASIVO para la IA
+                    return "### EXPEDIENTE: [Caso #{$r->case_number}]\n" .
+                        "TRIBUNAL/CORTE: {$r->court}\n" .
+                        "URL FUENTE: {$r->url}\n" .
+                        "PARTES: {$partes}\n" .
+                        "MAGISTRADO PONENTE: {$magistrado}\n" .
+                        "PROCEDIMIENTO: {$procedimiento}\n" .
+                        "--- DETALLES METADATA ---\n{$metaString}\n" .
+                        "--- CONTENIDO DE LA SENTENCIA ---\n{$r->content}";
+                })->implode("\n\n==================================\n\n")
                 : "No se encontraron registros.";
 
             $agent = new JudicialAssistant();
