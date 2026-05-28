@@ -32,16 +32,20 @@ class SearchChat extends Component
 
             $context = $results->isNotEmpty()
                 ? $results->map(function ($r) {
-                    $meta = json_decode($r->metadata, true);
+                    $meta = json_decode($r->metadata ?? '{}', true);
 
                     unset($meta['scraped_at']);
 
+                    $partes = $meta['parts'] ?? 'Partes no especificadas';
+
+                    $fecha = $r->date ?? ($meta['date'] ?? 'Fecha no especificada');
+
                     $metaString = collect($meta)->map(fn($v, $k) => "$k: $v")->implode(' | ');
 
-                    return "### SENTENCIA: [Caso #{$r->case_number} | Fecha: {$r->date}]\nMETADATA: {$metaString}\nCONTENIDO: {$r->content}";
+                    return "### SENTENCIA: [Caso #{$r->case_number} | Fecha: {$fecha}]\nPARTES INVOLUCRADAS: {$partes}\nMETADATA: {$metaString}\nCONTENIDO: {$r->content}";
                 })->implode("\n\n---\n\n")
                 : "No se encontraron registros.";
-                
+
             $agent = new JudicialAssistant();
 
             $response = $agent->prompt(
