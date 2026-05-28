@@ -4,8 +4,8 @@
         <div class="space-y-4 mb-6">
             @foreach($messages as $msg)
             <div class="{{ $msg['role'] === 'user' ? 'text-right' : 'text-left' }}">
-                <div class="inline-block p-4 rounded-lg {{ $msg['role'] === 'user' ? 'bg-indigo-600 text-white' : 'bg-gray-100' }}">
-                    {{ $msg['content'] }}
+                <div class="prose prose-slate max-w-none dark:prose-invert">
+                    {!! Illuminate\Mail\Markdown::parse($msg['content']) !!}
                 </div>
             </div>
             @endforeach
