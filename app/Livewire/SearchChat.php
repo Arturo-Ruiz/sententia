@@ -31,10 +31,17 @@ class SearchChat extends Component
             $results = $searchService->search($currentQuestion, limit: 5);
 
             $context = $results->isNotEmpty()
-                ? $results->map(fn($r) => "### SENTENCIA: [Caso #{$r->case_number}]\n{$r->content}")
-                ->implode("\n\n---\n\n")
-                : "No se encontraron registros.";
+                ? $results->map(function ($r) {
+                    $meta = json_decode($r->metadata, true);
 
+                    unset($meta['scraped_at']);
+
+                    $metaString = collect($meta)->map(fn($v, $k) => "$k: $v")->implode(' | ');
+
+                    return "### SENTENCIA: [Caso #{$r->case_number} | Fecha: {$r->date}]\nMETADATA: {$metaString}\nCONTENIDO: {$r->content}";
+                })->implode("\n\n---\n\n")
+                : "No se encontraron registros.";
+                
             $agent = new JudicialAssistant();
 
             $response = $agent->prompt(
