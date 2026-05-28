@@ -3,9 +3,12 @@
 namespace App\Livewire;
 
 use Livewire\Component;
+
 use App\Services\SemanticSearchService;
 use App\Ai\Agents\JudicialAssistant;
+
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\DB;
 
 class SearchChat extends Component
 {
@@ -33,17 +36,19 @@ class SearchChat extends Component
             $context = $results->isNotEmpty()
                 ? $results->map(function ($r) {
                     $meta = json_decode($r->metadata ?? '{}', true);
-
                     unset($meta['scraped_at']);
 
                     $partes = $meta['parts'] ?? 'Partes no especificadas';
                     $magistrado = $meta['magistrate'] ?? 'Magistrado no especificado';
                     $procedimiento = $meta['procedure'] ?? 'Procedimiento no especificado';
 
-                    // 3. Convertimos el resto de la metadata (ej. decision_summary) a texto
                     $metaString = collect($meta)->map(fn($v, $k) => strtoupper($k) . ": $v")->implode("\n");
 
-                    // 4. Construimos el bloque de texto MASIVO para la IA
+                    $ultimoChunk = DB::table('sentence_chunks')
+                        ->where('sentence_id', $r->sentence_id)
+                        ->orderBy('chunk_index', 'desc')
+                        ->value('content');
+
                     return "### EXPEDIENTE: [Caso #{$r->case_number}]\n" .
                         "TRIBUNAL/CORTE: {$r->court}\n" .
                         "URL FUENTE: {$r->url}\n" .
@@ -51,9 +56,12 @@ class SearchChat extends Component
                         "MAGISTRADO PONENTE: {$magistrado}\n" .
                         "PROCEDIMIENTO: {$procedimiento}\n" .
                         "--- DETALLES METADATA ---\n{$metaString}\n" .
-                        "--- CONTENIDO DE LA SENTENCIA ---\n{$r->content}";
+                        "--- FRAGMENTO RELEVANTE DE LA SENTENCIA ---\n{$r->content}\n\n" .
+                        "--- FRAGMENTO FINAL DE LA SENTENCIA (PARA EXTRAER FECHA) ---\n{$ultimoChunk}";
                 })->implode("\n\n==================================\n\n")
                 : "No se encontraron registros.";
+
+
 
             $agent = new JudicialAssistant();
 

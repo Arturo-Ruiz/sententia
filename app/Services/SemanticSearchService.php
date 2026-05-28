@@ -15,13 +15,13 @@ class SemanticSearchService
         //
     }
 
-  public function search(string $query, int $limit = 5)
+    public function search(string $query, int $limit = 5)
     {
         if (empty(trim($query))) return collect();
 
         $textResults = DB::table('sentence_chunks')
             ->join('sentences', 'sentence_chunks.sentence_id', '=', 'sentences.id')
-            ->select('sentence_chunks.content', 'sentences.case_number', 'sentences.url', 'sentences.court', 'sentences.metadata')
+            ->select('sentence_chunks.content', 'sentences.case_number', 'sentences.url', 'sentences.court', 'sentences.metadata', 'sentences.id as sentence_id')
             ->where('sentences.case_number', 'LIKE', "%$query%")
             ->orWhere('sentence_chunks.content', 'LIKE', "%$query%")
             ->limit($limit)
@@ -37,9 +37,10 @@ class SemanticSearchService
             ->select([
                 'sentence_chunks.content',
                 'sentences.case_number',
-                'sentences.url',    
-                'sentences.court',   
-                'sentences.metadata'
+                'sentences.url',
+                'sentences.court',
+                'sentences.metadata',
+                'sentences.id as sentence_id'
             ])
             ->whereRaw("1 - (sentence_chunks.embedding <=> '$vectorString') > 0.3")
             ->orderByRaw("sentence_chunks.embedding <=> '$vectorString' ASC")
