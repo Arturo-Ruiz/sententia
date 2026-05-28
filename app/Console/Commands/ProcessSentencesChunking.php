@@ -8,19 +8,21 @@ use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
-#[Signature('app:chunk {limit=100}')]
+#[Signature('app:chunk {limit=100} {offset=0}')]
 #[Description('Index sentences with enriched metadata for chronological retrieval')]
 class ProcessSentencesChunking extends Command
 {
     public function handle()
     {
         $limit = (int) $this->argument('limit');
+        $offset = (int) $this->argument('offset');
 
         $sentences = DB::table('sentences')
             ->leftJoin('sentence_chunks', 'sentences.id', '=', 'sentence_chunks.sentence_id')
             ->whereNull('sentence_chunks.id')
             ->select('sentences.id', 'sentences.content', 'sentences.case_number', 'sentences.court', 'sentences.metadata')
             ->limit($limit)
+            ->offset($offset)
             ->get();
 
         foreach ($sentences as $sentence) {
