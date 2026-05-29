@@ -2,20 +2,20 @@
 
 namespace App\Ai\Agents;
 
+use Laravel\Ai\Attributes\Model;
+use Laravel\Ai\Attributes\Provider;
+use Laravel\Ai\Attributes\Temperature;
 use Laravel\Ai\Contracts\Agent;
 use Laravel\Ai\Contracts\Conversational;
 use Laravel\Ai\Contracts\HasTools;
-use Laravel\Ai\Attributes\Provider;
-use Laravel\Ai\Attributes\Model;
-use Laravel\Ai\Attributes\Temperature;
 use Laravel\Ai\Contracts\Tool;
-use Laravel\Ai\Messages\Message;
 use Laravel\Ai\Enums\Lab;
+use Laravel\Ai\Messages\Message;
 use Laravel\Ai\Promptable;
 use Stringable;
 
 #[Provider(Lab::Groq)]
-#[Model('openai/gpt-oss-safeguard-20b')]
+#[Model('llama-3.3-70b-versatile')]
 #[Temperature(0.1)]
 
 class JudicialAssistant implements Agent, Conversational, HasTools
