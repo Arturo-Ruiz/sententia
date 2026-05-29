@@ -46,7 +46,7 @@ class ProcessSentencesChunking extends Command
             return Command::SUCCESS;
         }
 
-        $this->info("Procesando {$totalSentencesToProcess} sentencias (Protección Anti-Corrupción Activada)...");
+        $this->info("Procesando {$totalSentencesToProcess} sentencias...");
 
         $bar = $this->output->createProgressBar($totalSentencesToProcess);
         $bar->start();
