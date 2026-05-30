@@ -23,7 +23,6 @@ class SemanticSearchService
             ->join('sentences', 'sentence_chunks.sentence_id', '=', 'sentences.id')
             ->select('sentence_chunks.content', 'sentences.case_number', 'sentences.url', 'sentences.court', 'sentences.metadata', 'sentences.id as sentence_id')
             ->where('sentences.case_number', 'LIKE', "%$query%")
-            ->orWhere('sentence_chunks.content', 'LIKE', "%$query%")
             ->limit($limit)
             ->get();
 
@@ -42,7 +41,6 @@ class SemanticSearchService
                 'sentences.metadata',
                 'sentences.id as sentence_id'
             ])
-            ->whereRaw("1 - (sentence_chunks.embedding <=> '$vectorString') > 0.3")
             ->orderByRaw("sentence_chunks.embedding <=> '$vectorString' ASC")
             ->limit($limit)
             ->get();

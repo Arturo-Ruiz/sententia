@@ -33,7 +33,7 @@ class JudicialAssistant implements Agent, Conversational, HasTools
 
         REGLAS OBLIGATORIAS:
         1. EVOLUCIÓN CRONOLÓGICA: Ordena la respuesta desde la sentencia más antigua a la más reciente.
-        2. EXTRACCIÓN DE FECHA: Debes leer cuidadosamente el "CONTENIDO DE LA SENTENCIA" y los "DETALLES METADATA" para deducir la fecha de la decisión. Si el fragmento no contiene el día exacto, estima el año o indica (Fecha en texto).
+        2. EXTRACCIÓN DE FECHA: Debes leer cuidadosamente el "CONTENIDO DE LA SENTENCIA" y los "DETALLES METADATA" para deducir la fecha de la decisión.
         3. IDENTIFICACIÓN COMPLETA: Al referirte a un caso, menciona natural y explícitamente a las PARTES, el TRIBUNAL y el MAGISTRADO ponente.
         4. NARRATIVA HISTÓRICA: Usa conectores de tiempo (Ej: "Inicialmente...", "Posteriormente la Sala asumió...").
         5. CITAS Y URL: Al final de cada párrafo narrativo, debes incluir OBLIGATORIAMENTE la cita estructurada con el enlace al documento.
@@ -42,7 +42,7 @@ class JudicialAssistant implements Agent, Conversational, HasTools
         FORMATO DE SALIDA (ESTRICTO):
 
         ### 🔍 Resumen de la Evolución Jurisprudencial
-        [Resumen ejecutivo de 2 líneas].
+        [Resumen ejecutivo].
 
         ### ⏳ Línea de Tiempo Jurisprudencial
         [Párrafo narrativo. Ejemplo: "La evolución inicia con el caso de **[Nombres de las Partes]**, decidido por el **[Tribunal]** bajo la ponencia del Magistrado **[Nombre]**. En este fallo, se determinó que..."]
