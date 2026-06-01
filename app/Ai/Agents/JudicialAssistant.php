@@ -23,6 +23,22 @@ class JudicialAssistant implements Agent, Conversational, HasTools
     use Promptable;
 
     /**
+     * The dynamic message history for the conversational agent.
+     */
+    protected array $history = [];
+
+    /**
+     * Create a new agent instance, optionally hydrating it with conversation history.
+     */
+    public function __construct(array $history = [])
+    {
+        $this->history = array_map(
+            fn ($m) => Message::tryFrom($m),
+            $history
+        );
+    }
+
+    /**
      * Get the instructions that the agent should follow.
      */
     public function instructions(): Stringable|string
@@ -93,7 +109,7 @@ class JudicialAssistant implements Agent, Conversational, HasTools
      */
     public function messages(): iterable
     {
-        return [];
+        return $this->history;
     }
 
     /**

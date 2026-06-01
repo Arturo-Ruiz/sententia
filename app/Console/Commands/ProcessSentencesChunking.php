@@ -9,7 +9,7 @@ use Illuminate\Support\Facades\DB;
 use Laravel\Ai\Embeddings;
 use Throwable;
 
-#[Signature('app:chunk {limit=0} {offset=0} {--batch-size=96}')]
+#[Signature('app:chunk {limit=0} {offset=0} {--batch-size=96} {--include-partial}')]
 #[Description('Index sentences with enriched metadata for chronological retrieval')]
 class ProcessSentencesChunking extends Command
 {
@@ -29,6 +29,15 @@ class ProcessSentencesChunking extends Command
             })
             ->select('id', 'content', 'case_number', 'court', 'metadata')
             ->orderBy('id', 'asc');
+
+        if ($this->option('include-partial')) {
+            $query->orWhereExists(function ($q) {
+                $q->select(DB::raw(1))
+                    ->from('sentence_chunks')
+                    ->whereColumn('sentence_chunks.sentence_id', 'sentences.id')
+                    ->whereNull('sentence_chunks.embedding');
+            });
+        }
 
         if ($limit > 0) {
             $query->limit($limit);
@@ -58,6 +67,13 @@ class ProcessSentencesChunking extends Command
         $totalInsertedChunks = 0;
 
         foreach ($query->cursor() as $sentence) {
+            // Limpiar chunks parciales existentes para re-procesamiento limpio
+            if ($this->option('include-partial')) {
+                DB::table('sentence_chunks')
+                    ->where('sentence_id', $sentence->id)
+                    ->delete();
+            }
+
             $metadataArray = json_decode($sentence->metadata ?? '{}', true) ?? [];
             $metaString = '';
             foreach ($metadataArray as $k => $v) {
@@ -77,7 +93,22 @@ class ProcessSentencesChunking extends Command
                 continue;
             }
 
-            $wordChunks = array_chunk($words, 300);
+            // Chunking con overlap del 25% (300 palabras de tamaño, 75 de traslape)
+            $chunkSize = 300;
+            $overlap = 75;
+            $wordChunks = [];
+            $i = 0;
+            $totalWords = count($words);
+
+            while ($i < $totalWords) {
+                $chunkWords = array_slice($words, $i, $chunkSize);
+                $wordChunks[] = $chunkWords;
+                $i += ($chunkSize - $overlap);
+
+                if ($chunkSize <= $overlap) {
+                    break;
+                }
+            }
 
             $sentenceChunkCounts[$sentence->id] = count($wordChunks);
 
@@ -93,7 +124,7 @@ class ProcessSentencesChunking extends Command
 
                 if (count($apiBatch) >= $batchSize) {
                     $this->processApiBatch($apiBatch, $dbBuffer);
-                    $apiBatch = []; 
+                    $apiBatch = [];
 
                     $totalInsertedChunks += $this->flushCompletedSentences($dbBuffer, $sentenceChunkCounts);
                 }

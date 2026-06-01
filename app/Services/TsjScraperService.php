@@ -2,15 +2,15 @@
 
 namespace App\Services;
 
+use App\Models\Sentence;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Symfony\Component\DomCrawler\Crawler;
 
-use App\Models\Sentence;
-
 class TsjScraperService
 {
     private string $baseUrl = 'https://www.tsj.gob.ve/decisiones';
+
     private array $headers;
 
     public function __construct()
@@ -43,10 +43,11 @@ class TsjScraperService
 
             if ($response->successful()) {
                 $data = $response->json();
+
                 return $data['coleccion']['SALA'] ?? [];
             }
         } catch (\Exception $e) {
-            Log::error("Error al obtener salas de la API: " . $e->getMessage());
+            Log::error('Error al obtener salas de la API: '.$e->getMessage());
         }
 
         return [];
@@ -73,13 +74,15 @@ class TsjScraperService
             if ($response->successful()) {
                 $data = $response->json();
 
-                if (!isset($data['coleccion']) || !is_array($data['coleccion'])) {
+                if (! isset($data['coleccion']) || ! is_array($data['coleccion'])) {
                     return [];
                 }
 
                 $diasRaw = $data['coleccion']['DIA'] ?? $data['coleccion']['dia'] ?? [];
 
-                if (empty($diasRaw)) return [];
+                if (empty($diasRaw)) {
+                    return [];
+                }
 
                 if (is_array($diasRaw) && (isset($diasRaw['FECHA']) || isset($diasRaw['fecha']))) {
                     return [$diasRaw];
@@ -88,7 +91,7 @@ class TsjScraperService
                 return is_array($diasRaw) ? $diasRaw : [];
             }
         } catch (\Exception $e) {
-            Log::error("Error consultando días activos de la Sala #{$salaId}: " . $e->getMessage());
+            Log::error("Error consultando días activos de la Sala #{$salaId}: ".$e->getMessage());
         }
 
         return [];
@@ -112,11 +115,13 @@ class TsjScraperService
                     'SALA' => $salaId,
                 ]);
 
-            if (!$response->successful()) return 0;
+            if (! $response->successful()) {
+                return 0;
+            }
 
             $data = $response->json();
 
-            if (!isset($data['coleccion']) || !is_array($data['coleccion'])) {
+            if (! isset($data['coleccion']) || ! is_array($data['coleccion'])) {
                 return 0;
             }
 
@@ -127,7 +132,7 @@ class TsjScraperService
                 ?? [];
 
             if (empty($decisionesRaw)) {
-                if (count($data['coleccion']) > 0 && !isset($data['coleccion'][0])) {
+                if (count($data['coleccion']) > 0 && ! isset($data['coleccion'][0])) {
                     $decisionesRaw = [$data['coleccion']];
                 } else {
                     return 0;
@@ -140,7 +145,8 @@ class TsjScraperService
 
             return $this->processJsonResults($decisionesRaw, $salaRealName, $output);
         } catch (\Exception $e) {
-            Log::error("Fallo al procesar el día {$fecha} en Sala {$salaRealName}: " . $e->getMessage());
+            Log::error("Fallo al procesar el día {$fecha} en Sala {$salaRealName}: ".$e->getMessage());
+
             return 0;
         }
     }
@@ -162,27 +168,36 @@ class TsjScraperService
             '09' => 'septiembre',
             '10' => 'octubre',
             '11' => 'noviembre',
-            '12' => 'diciembre'
+            '12' => 'diciembre',
         ];
 
         foreach ($decisiones as $index => $decision) {
-            if (!is_array($decision)) continue;
+            if (! is_array($decision)) {
+                continue;
+            }
 
             // 📌 SANITIZACIÓN ANTE RESIDUOS {"@nil": "true"} DE LA API
             $docName = $decision['SSENTNOMBREDOC'] ?? null;
-            if (is_array($docName)) $docName = null;
+            if (is_array($docName)) {
+                $docName = null;
+            }
 
             $salaDir = $decision['SSALADIR'] ?? null;
-            if (is_array($salaDir)) $salaDir = null;
+            if (is_array($salaDir)) {
+                $salaDir = null;
+            }
 
             $fechaRaw = $decision['DSENTFECHA'] ?? '';
-            if (is_array($fechaRaw)) $fechaRaw = '';
+            if (is_array($fechaRaw)) {
+                $fechaRaw = '';
+            }
 
-            if (!$docName || $docName === 'null' || !$salaDir || empty($fechaRaw)) {
+            if (! $docName || $docName === 'null' || ! $salaDir || empty($fechaRaw)) {
                 if ($output) {
-                    $output->info("    ⏭️ Saltando registro #" . ($index + 1) . ": Documento o ruta no disponible.");
+                    $output->info('    ⏭️ Saltando registro #'.($index + 1).': Documento o ruta no disponible.');
                 }
                 $skipped++;
+
                 continue;
             }
 
@@ -193,6 +208,7 @@ class TsjScraperService
 
             if (Sentence::where('url', $decisionUrl)->exists()) {
                 $skipped++;
+
                 continue;
             }
 
@@ -204,22 +220,38 @@ class TsjScraperService
 
             $caseNumber = $decision['SSENTEXPEDIENTE'] ?? null;
             if (is_array($caseNumber) || empty($caseNumber)) {
-                $caseNumber = 'S/E-' . uniqid();
+                $caseNumber = 'S/E-'.uniqid();
             }
 
             $partsRaw = $decision['SSENTPARTES'] ?? '';
-            $partsString = is_array($partsRaw) ? '' : (string)$partsRaw;
+            $partsString = is_array($partsRaw) ? '' : (string) $partsRaw;
             $partsClean = trim(preg_replace('/\s+/', ' ', $partsString));
 
             $summaryRaw = $decision['SSENTDECISION'] ?? '';
-            $summaryString = is_array($summaryRaw) ? '' : (string)$summaryRaw;
+            $summaryString = is_array($summaryRaw) ? '' : (string) $summaryRaw;
 
             // Saneamiento de campos que van a la metadata estructurada
             $procedure = $decision['SPROCDESCRIPCION'] ?? null;
-            if (is_array($procedure)) $procedure = null;
+            if (is_array($procedure)) {
+                $procedure = null;
+            }
 
             $magistrate = $decision['SPONENOMBRE'] ?? null;
-            if (is_array($magistrate)) $magistrate = null;
+            if (is_array($magistrate)) {
+                $magistrate = null;
+            }
+
+            $decisionDate = null;
+            if (! empty($fechaRaw) && ! is_array($fechaRaw)) {
+                try {
+                    $parts = explode('/', $fechaRaw);
+                    if (count($parts) === 3) {
+                        $decisionDate = "{$parts[2]}-{$parts[1]}-{$parts[0]}";
+                    }
+                } catch (\Exception $e) {
+                    $decisionDate = null;
+                }
+            }
 
             if ($output) {
                 $output->warn("    💾 Descargando -> Exp: $caseNumber | Sentencia N° $sentenceNumber...");
@@ -232,6 +264,7 @@ class TsjScraperService
                 'case_number' => $caseNumber,
                 'court' => $courtName,
                 'content' => $fullContent,
+                'decision_date' => $decisionDate,
                 'metadata' => [
                     'sentence_number' => $sentenceNumber,
                     'procedure' => $procedure,
@@ -239,8 +272,10 @@ class TsjScraperService
                     'decision_summary' => $summaryString,
                     'magistrate' => $magistrate,
                     'scraped_at' => now()->toDateTimeString(),
-                ]
+                ],
             ]);
+
+            usleep(500000); // Rate limiting: 0.5s entre requests al TSJ
 
             $scrapedCount++;
         }
@@ -263,14 +298,17 @@ class TsjScraperService
 
                 if ($response->successful()) {
                     $rawBody = $response->body();
-                    $html = $rawBody;
+                    $encoding = mb_detect_encoding($rawBody, ['UTF-8', 'Windows-1252', 'ISO-8859-1'], true);
+                    $html = mb_convert_encoding($rawBody, 'UTF-8', $encoding ?: 'Windows-1252');
 
                     $crawler = new Crawler($html);
 
                     // Limpieza de elementos innecesarios
                     $crawler->filter('script, style, link, meta, header, footer, nav, table:first-of-type, .portlet-boundary')->each(function (Crawler $node) {
                         foreach ($node as $n) {
-                            if ($n->parentNode) $n->parentNode->removeChild($n);
+                            if ($n->parentNode) {
+                                $n->parentNode->removeChild($n);
+                            }
                         }
                     });
 
@@ -281,12 +319,12 @@ class TsjScraperService
                         $extractedText = trim($crawler->text());
                     }
 
-                    if (!empty($extractedText)) {
+                    if (! empty($extractedText)) {
                         return $extractedText;
                     }
                 }
             } catch (\Exception $e) {
-                Log::warning("Intento #{$attempt} fallido para URL: {$url}. Motivo: " . $e->getMessage());
+                Log::warning("Intento #{$attempt} fallido para URL: {$url}. Motivo: ".$e->getMessage());
 
                 if ($attempt < 3) {
                     usleep(1500000 * $attempt);

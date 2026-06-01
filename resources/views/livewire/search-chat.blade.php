@@ -1,4 +1,19 @@
 <div class="flex flex-col h-[calc(100vh-8rem)] relative">
+    <!-- Header con botón de nueva consulta -->
+    @if(!empty($messages))
+        <div class="flex justify-end px-4 sm:px-6 pt-2 pb-1">
+            <button 
+                wire:click="newChat"
+                class="flex items-center gap-1.5 text-xs font-medium text-zinc-500 hover:text-indigo-600 dark:text-zinc-400 dark:hover:text-indigo-400 transition-colors duration-200 px-3 py-1.5 rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-900/20"
+            >
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4">
+                    <path d="M10.75 4.75a.75.75 0 0 0-1.5 0v4.5h-4.5a.75.75 0 0 0 0 1.5h4.5v4.5a.75.75 0 0 0 1.5 0v-4.5h4.5a.75.75 0 0 0 0-1.5h-4.5v-4.5Z" />
+                </svg>
+                Nueva consulta
+            </button>
+        </div>
+    @endif
+
     <!-- Contenedor del Chat -->
     <div class="flex-1 overflow-y-auto px-4 sm:px-6 scroll-smooth" id="chat-container">
         <div class="max-w-3xl mx-auto space-y-8 pb-32 pt-4">
