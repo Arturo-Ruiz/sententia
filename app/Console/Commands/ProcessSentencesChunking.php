@@ -81,7 +81,7 @@ class ProcessSentencesChunking extends Command
             }
             $metaString = rtrim($metaString, ' | ');
 
-            $enrichedHeader = "CASE: {$sentence->case_number} | COURT: {$sentence->court} | META: {$metaString}\n\nCONTENT: ";
+            $enrichedHeader = "EXPEDIENTE: {$sentence->case_number} | TRIBUNAL: {$sentence->court} | {$metaString}\n\nCONTENIDO:\n";
 
             $cleanContent = preg_replace('/[\x00-\x1F\x7F]/', '', $sentence->content);
             $words = preg_split('/\s+/', trim($cleanContent));
@@ -93,9 +93,9 @@ class ProcessSentencesChunking extends Command
                 continue;
             }
 
-            // Chunking con overlap del 25% (300 palabras de tamaño, 75 de traslape)
-            $chunkSize = 300;
-            $overlap = 75;
+            // Chunking con overlap del 25% (500 palabras de tamaño, 125 de traslape)
+            $chunkSize = 500;
+            $overlap = 125;
             $wordChunks = [];
             $i = 0;
             $totalWords = count($words);

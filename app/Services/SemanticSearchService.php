@@ -15,6 +15,7 @@ class SemanticSearchService
      *
      * @param  string  $query  The natural language query.
      * @param  int  $limit  Max number of unique sentences to return.
+     * @param  string|null  $legalQuery  Optional reformulated query in legal terminology for better semantic matching.
      * @param  string|null  $court  Optional court/sala filter (exact match).
      * @param  string|null  $dateFrom  Optional start date filter (YYYY-MM-DD).
      * @param  string|null  $dateTo  Optional end date filter (YYYY-MM-DD).
@@ -23,6 +24,7 @@ class SemanticSearchService
     public function search(
         string $query,
         int $limit = 10,
+        ?string $legalQuery = null,
         ?string $court = null,
         ?string $dateFrom = null,
         ?string $dateTo = null,
@@ -30,6 +32,9 @@ class SemanticSearchService
         if (empty(trim($query))) {
             return collect();
         }
+
+        // La query jurídica reformulada se usa para vector/FTS; la original para ILIKE/case_number
+        $semanticQuery = $legalQuery ?? $query;
 
         // 1. Fast path — búsqueda exacta por número de expediente
         $caseQuery = DB::table('sentences')
@@ -44,7 +49,8 @@ class SemanticSearchService
         }
 
         // 2. Dense Retrieval — similitud vectorial con pgvector (HNSW)
-        $queryEmbedding = Str::of($query)->toEmbeddings(model: 'embed-multilingual-v3.0', provider: 'cohere');
+        // Usa la query jurídica para capturar conceptos legales equivalentes
+        $queryEmbedding = Str::of($semanticQuery)->toEmbeddings(model: 'embed-multilingual-v3.0', provider: 'cohere');
         $vectorString = '['.implode(',', $queryEmbedding).']';
 
         $vectorQuery = DB::table('sentence_chunks')
@@ -65,10 +71,11 @@ class SemanticSearchService
         $topChunks = $vectorQuery->get();
 
         // 3. Sparse Retrieval — Full-Text Search con diccionario español y GIN Index
+        // Usa la query jurídica para keywords legales técnicos
         $ftsQuery = DB::table('sentences')
             ->select(['id as sentence_id', 'case_number', 'url', 'court', 'metadata'])
-            ->selectRaw("ts_rank(search_vector, plainto_tsquery('spanish', ?)) as rank", [$query])
-            ->whereRaw("search_vector @@ plainto_tsquery('spanish', ?)", [$query])
+            ->selectRaw("ts_rank(search_vector, plainto_tsquery('spanish', ?)) as rank", [$semanticQuery])
+            ->whereRaw("search_vector @@ plainto_tsquery('spanish', ?)", [$semanticQuery])
             ->orderBy('rank', 'desc')
             ->limit(50);
         $this->applyFilters($ftsQuery, $court, $dateFrom, $dateTo);
@@ -76,6 +83,7 @@ class SemanticSearchService
         $ftsResults = $ftsQuery->get();
 
         // 4. Exact Match — ILIKE para nombres propios y términos exactos
+        // Usa la query ORIGINAL del usuario (no reformulada) para coincidencia textual
         $ilikeQuery = DB::table('sentences')
             ->select(['id as sentence_id', 'case_number', 'url', 'court', 'metadata'])
             ->where('content', 'ILIKE', '%'.str_replace(['%', '_'], ['\%', '\_'], $query).'%')

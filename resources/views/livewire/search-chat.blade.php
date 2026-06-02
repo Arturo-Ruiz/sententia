@@ -27,6 +27,33 @@
                     <p class="text-base mt-3 text-center max-w-md text-zinc-500 dark:text-zinc-400">
                         Describe tu caso o situación legal. Analizaré la base de datos del TSJ y encontraré los criterios exactos aplicables.
                     </p>
+                    
+                    <div class="flex flex-wrap justify-center gap-2 mt-8 max-w-lg">
+                        <button 
+                            wire:click="$set('question', 'Un accionista quiere vender sus acciones pero los estatutos de la empresa lo prohíben. ¿Qué ha dicho la Sala sobre restricciones estatutarias a la cesión de acciones?')"
+                            class="text-xs px-3.5 py-2 rounded-full border border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-400 hover:border-indigo-300 hover:text-indigo-600 dark:hover:border-indigo-700 dark:hover:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-all duration-200"
+                        >
+                            📄 Restricción de venta de acciones
+                        </button>
+                        <button 
+                            wire:click="$set('question', '¿Cuál es el criterio actual sobre la procedencia del amparo constitucional contra decisiones judiciales?')"
+                            class="text-xs px-3.5 py-2 rounded-full border border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-400 hover:border-indigo-300 hover:text-indigo-600 dark:hover:border-indigo-700 dark:hover:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-all duration-200"
+                        >
+                            ⚖️ Amparo contra sentencias
+                        </button>
+                        <button 
+                            wire:click="$set('question', 'Trabajador despedido injustificadamente reclama prestaciones sociales e indemnización. ¿Qué criterios ha fijado la Sala?')"
+                            class="text-xs px-3.5 py-2 rounded-full border border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-400 hover:border-indigo-300 hover:text-indigo-600 dark:hover:border-indigo-700 dark:hover:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-all duration-200"
+                        >
+                            👷 Despido injustificado
+                        </button>
+                        <button 
+                            wire:click="$set('question', 'Inquilino demandado por desalojo alega preferencia ofertiva. ¿Cómo ha resuelto la Sala estos casos?')"
+                            class="text-xs px-3.5 py-2 rounded-full border border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-400 hover:border-indigo-300 hover:text-indigo-600 dark:hover:border-indigo-700 dark:hover:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-all duration-200"
+                        >
+                            🏠 Desalojo y preferencia ofertiva
+                        </button>
+                    </div>
                 </div>
             @endif
 

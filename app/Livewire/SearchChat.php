@@ -3,6 +3,7 @@
 namespace App\Livewire;
 
 use App\Ai\Agents\JudicialAssistant;
+use App\Ai\Agents\QueryReformulator;
 use App\Services\SemanticSearchService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -46,16 +47,29 @@ class SearchChat extends Component
         $this->reset('question');
 
         try {
+            // 1. Reformular la pregunta en lenguaje jurídico para mejor retrieval
+            $legalQuery = null;
+            try {
+                $reformulator = new QueryReformulator;
+                $reformulation = $reformulator->prompt($currentQuestion);
+                $legalQuery = $reformulation->text;
+                Log::info('Query reformulada', ['original' => $currentQuestion, 'legal' => $legalQuery]);
+            } catch (\Exception $e) {
+                Log::warning('Reformulación falló, usando query original: '.$e->getMessage());
+            }
+
+            // 2. Buscar con query original + reformulación jurídica
             $searchService = app(SemanticSearchService::class);
-            $results = $searchService->search($currentQuestion, limit: 5);
+            $results = $searchService->search($currentQuestion, limit: 5, legalQuery: $legalQuery);
 
             if ($results->isEmpty()) {
-                $this->messages[] = ['role' => 'assistant', 'content' => 'No se encontraron sentencias relevantes para tu consulta. Intenta describir tu caso con más detalle.'];
+                $this->messages[] = ['role' => 'assistant', 'content' => 'No se encontraron sentencias relevantes para tu consulta. Intenta describir tu caso con más detalle o usar términos jurídicos específicos.'];
                 $this->persistMessages();
 
                 return;
             }
 
+            // 3. Construir contexto estructurado para el LLM (solo chunks relevantes, no full_content)
             $context = $results->map(function ($r, $index) {
                 $meta = json_decode($r->metadata ?? '{}', true) ?? [];
                 unset($meta['scraped_at']);
@@ -63,14 +77,9 @@ class SearchChat extends Component
                 $partes = $meta['parts'] ?? 'No especificadas';
                 $magistrado = $meta['magistrate'] ?? 'No especificado';
                 $procedimiento = $meta['procedure'] ?? 'No especificado';
+                $resumen = $meta['decision_summary'] ?? '';
 
                 $relevantText = $r->relevant_chunks ?? '';
-
-                // Enviar contenido completo al LLM (truncado a 30K chars para no exceder context window)
-                $fullContent = mb_strlen($r->full_content ?? '') > 30000
-                    ? mb_substr($r->full_content, 0, 30000).'... [truncado]'
-                    : ($r->full_content ?? '');
-
                 $n = $index + 1;
 
                 return "=== SENTENCIA #{$n} ===\n".
@@ -79,23 +88,23 @@ class SearchChat extends Component
                     "URL: {$r->url}\n".
                     "PARTES: {$partes}\n".
                     "MAGISTRADO: {$magistrado}\n".
-                    "PROCEDIMIENTO: {$procedimiento}\n\n".
-                    "FRAGMENTOS MÁS RELEVANTES:\n{$relevantText}\n\n".
-                    "CONTENIDO COMPLETO DE LA SENTENCIA:\n{$fullContent}\n".
+                    "PROCEDIMIENTO: {$procedimiento}\n".
+                    ($resumen ? "RESUMEN: {$resumen}\n" : '').
+                    "\nCONTENIDO RELEVANTE:\n{$relevantText}\n".
                     '=== FIN ===';
             })->implode("\n\n");
 
-            // 3. Instanciar el asistente pasándole el historial conversacional limpio
+            // 4. Instanciar el asistente pasándole el historial conversacional limpio
             $agent = new JudicialAssistant($history);
 
-            // 4. Promptear con el contexto híbrido enriquecido y el Rerank
+            // 5. Promptear con el contexto híbrido enriquecido
             $response = $agent->prompt(
-                "CONTEXTO:\n\n{$context}\n\nPREGUNTA:\n{$currentQuestion}"
+                "CONTEXTO:\n\n{$context}\n\nPREGUNTA DEL USUARIO:\n{$currentQuestion}"
             );
 
             $this->messages[] = ['role' => 'assistant', 'content' => $response->text];
 
-            // 5. Persistir la conversación en la base de datos
+            // 6. Persistir la conversación en la base de datos
             $this->persistMessages();
         } catch (\Exception $e) {
             Log::error('Error en SearchChat: '.$e->getMessage());
